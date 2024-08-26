@@ -3,3 +3,13 @@
   color: green;
   border: 1px solid green;
 }
+
+.selected {
+  max-height: 300px;
+  overflow: auto;
+  padding: 16px;
+}
+
+.selected-item {
+  list-style: none;
+}

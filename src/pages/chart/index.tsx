@@ -1,15 +1,19 @@
+import classNames from 'classnames';
 import * as d3 from 'd3';
 import { useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 
 import SideList from '@components/side-list/SideList';
 
+import styles from './Chart.module.scss';
+
 export default function Chart() {
-  const {register, handleSubmit, getValues} = useForm();
+  const {register, handleSubmit, getValues, setValue, control} = useForm();
+  const watch = useWatch({control});
   const chart = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<{id: number, x: number, y: number, text: string}[]>([]);
-  const [tempData, setTempData] = useState<any[]>([]);
+  const [tempData, setTempData] = useState<any>({});
   const [tooltip, setTooltip] = useState<{x: number, y: number, text: string}>();
   const [current, setCurrent] = useState<string>();
   const [itemsC, setItemsC] = useState<string[]>([]);
@@ -18,6 +22,9 @@ export default function Chart() {
   const [selection, setSelection] = useState<any[]>([]);
   const [loadging, setLoading] = useState<boolean>(false);
   const [showSelect, setShowSelect] = useState<boolean>(false);
+  const [disableExport, setDisableExport] = useState<boolean>(true);
+  const [commentsAdded, setCommentsAdded] = useState<number>(0);
+  const [disableLoadFile, setDisableLoadFile] = useState<boolean>(true);
   // const [itemsNC, setItemsNC] = useState<string[]>([]);
   // const [selected, setSelected] = useState<string[]>([]);
 
@@ -81,6 +88,12 @@ export default function Chart() {
       drawChart();
     }
   }, [data]);
+
+  useEffect(() => {
+    const files = getValues('file');
+    console.log('oi', files);
+    setDisableLoadFile(!files || files.length === 0);
+  }, [watch]);
 
   const drawChart = () => {
     const width = 500;
@@ -244,16 +257,25 @@ export default function Chart() {
   }
 
   const addComment = () => {
-    const comment = getValues('comment')
+    const comment = getValues('comment');
+    setTempData((value: any) => {
+      selection.forEach(item => value[item.text] = comment);
+      setDisableExport(false);
+      return value;
+    });
+    setCommentsAdded(value => value+1);
+    setValue('comment', '');
+  }
+
+  const exportFile = () => {
     const value: FileList = getValues('file');
     const file = value.item(0);
     const body = new FormData();
     body.append('files', file!);
+    body.append('lines', JSON.stringify(tempData));
     const params = new URLSearchParams({
       species: getValues('species'),
-      comment
     })
-    selection.forEach(feature => params.append('lines', feature.text))
     fetch('http://localhost:8000/comment?' + params,
       {
         method: 'POST',
@@ -261,15 +283,22 @@ export default function Chart() {
       })
       .then(resp => resp.blob())
       .then(resp => {
-        const url = window.URL.createObjectURL(new Blob([resp]))
-        const link = document.createElement('a')
-        link.href = url
-        link.setAttribute('download', "features.csv")
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
+        const url = window.URL.createObjectURL(new Blob([resp]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'features.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
       })
-  }
+      .then(() => {
+        setTempData({});
+        setShowSelect(false);
+        setItemsC([]);
+        setData([]);
+        setValue('file', '');
+      });
+  };
 
   return (
     <>
@@ -283,13 +312,14 @@ export default function Chart() {
             id='file'
           />
 
-          <button className='btn btn-primary' type='submit'>Selecionar</button>
+          <button className='btn btn-primary' type='submit' disabled={disableLoadFile}>Load file</button>
         </div>
       </form>
 
       { showSelect &&
         <div className='m-3'>
-          <select className='form-select' {...register('species')}>
+          <label htmlFor='species' className='form-label'>Select species</label>
+          <select id='species' className='form-select' {...register('species')}>
             {species.map((option, index) =>
               <option value={option} key={index}>{option}</option>
             )}
@@ -329,22 +359,33 @@ export default function Chart() {
             </div>
 
             <div className='mx-auto mb-auto'>
-            <input
-              {...register('comment')}
-              type='text'
-              className='mb-3 form-control'
-              id='comment'
-            />
-            <button className='btn btn-primary' type='button' onClick={addComment}>Add comment</button>
-            <br />
-              <span className='fw-bold'>Selected:</span>
-              <ul>
-                {selection.map((item, index) =>
-                  <li key={index}>
-                    {item.text}
-                  </li>
-                )}
-              </ul>
+              <input
+                {...register('comment')}
+                type='text'
+                className='mb-3 form-control'
+                id='comment'
+              />
+              <div className='d-flex'>
+                <button className='btn btn-primary mx-1' type='button' onClick={addComment} disabled={!selection.length}>Add comment</button>
+                <button className='btn btn-secondary mx-1' type='button' onClick={exportFile} disabled={disableExport}>Export file</button>
+              </div>
+              { commentsAdded > 0 &&  `${commentsAdded} comment${commentsAdded === 1 ? '' : 's'} added`}
+              <br />
+              { !!selection.length && <>
+                <span className='fw-bold mt-3 d-block'>Selected:</span>
+                <ul className={
+                  classNames(
+                    'border',
+                    styles.selected
+                  )}>
+                  {selection.map((item, index) =>
+                    <li key={index} className={styles['selected-item']}>
+                      {item.text}
+                    </li>
+                  )}
+                </ul>
+              </>
+              }
             </div>
           </>
         }

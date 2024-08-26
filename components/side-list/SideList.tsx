@@ -1,15 +1,26 @@
 import classNames from 'classnames';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 
 import styles from './SideList.module.scss';
 
 export default function SideList({items, onSubmit}: {items: string[], onSubmit: (fe: string[]) => void}) {
-  const {register, getValues} = useForm();
+  const { register, getValues, control } = useForm();
+  const [disabled, setDisabled] = useState<boolean>();
+  const watch = useWatch({control});
+
+  const getCheckedBoxes = () => {
+    const values = getValues();
+    return Object.keys(getValues()).filter(key => values[key]);
+  };
 
   const onClick = () => {
-    const values = getValues();
-    onSubmit(Object.keys(getValues()).filter(key => values[key]));
+    onSubmit(getCheckedBoxes());
   };
+
+  useEffect(()=> {
+    setDisabled(getCheckedBoxes().length < 2);
+  }, [watch]);
 
   return (<>
     {items?.length !== 0 &&
@@ -42,6 +53,7 @@ export default function SideList({items, onSubmit}: {items: string[], onSubmit: 
           className="btn btn-secondary"
           type='button'
           onClick={onClick}
+          disabled={disabled}
         >Send</button>
       </div>
     }
