@@ -297,6 +297,7 @@ export default function Chart() {
         setData([]);
         setValue('file', '');
         setCommentsAdded(0);
+        setDisableExport(true);
       });
   };
 
