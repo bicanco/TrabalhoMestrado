@@ -91,7 +91,6 @@ export default function Chart() {
 
   useEffect(() => {
     const files = getValues('file');
-    console.log('oi', files);
     setDisableLoadFile(!files || files.length === 0);
   }, [watch]);
 
@@ -286,7 +285,7 @@ export default function Chart() {
         const url = window.URL.createObjectURL(new Blob([resp]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', 'features.csv');
+        link.setAttribute('download', value[0].name);
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -297,6 +296,7 @@ export default function Chart() {
         setItemsC([]);
         setData([]);
         setValue('file', '');
+        setCommentsAdded(0);
       });
   };
 
