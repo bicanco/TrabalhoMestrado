@@ -25,6 +25,8 @@ export default function Chart() {
   const [disableExport, setDisableExport] = useState<boolean>(true);
   const [commentsAdded, setCommentsAdded] = useState<number>(0);
   const [disableLoadFile, setDisableLoadFile] = useState<boolean>(true);
+  const [audioSrc, setAudioSrc] = useState<string>();
+  const [audioSrcIndex, setAudioSrcIndex] = useState<number>();
   // const [itemsNC, setItemsNC] = useState<string[]>([]);
   // const [selected, setSelected] = useState<string[]>([]);
 
@@ -301,6 +303,18 @@ export default function Chart() {
       });
   };
 
+  const clickSelected = (filename: string, index: number) => {
+    const params = new URLSearchParams({
+      species: getValues('species'),
+      filename
+    });
+    setAudioSrcIndex(index);
+    setAudioSrc('');
+    setTimeout(() => {
+      setAudioSrc('http://localhost:8000/wav?'+params);
+    });
+  };
+
   return (
     <>
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -380,12 +394,22 @@ export default function Chart() {
                     styles.selected
                   )}>
                   {selection.map((item, index) =>
-                    <li key={index} className={styles['selected-item']}>
+                    <li
+                      key={index}
+                      className={
+                        classNames(styles['selected-item'], {'bg-info': index === audioSrcIndex})}
+                      onClick={()=> clickSelected(item.text, index)}
+                    >
                       {item.text}
                     </li>
                   )}
                 </ul>
               </>
+              }
+              {audioSrc &&
+              <audio controls>
+                <source src={audioSrc} />
+              </audio>
               }
             </div>
           </>
