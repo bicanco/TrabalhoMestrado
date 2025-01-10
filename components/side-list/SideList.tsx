@@ -33,7 +33,7 @@ export default function SideList({items, onSubmit}: {items: string[], onSubmit: 
         <hr />
         <ul className={
           classNames(styles.ul, 'mb-0')}>
-          {items.map((item, index) => (<>
+          {items?.map((item, index) => (<>
             <li className={styles.li} key={item}>
               <div className="form-check">
                 <input

@@ -15,10 +15,10 @@ export default function App({ Component, pageProps }: AppProps) {
             <Link className={
               classNames(
                 'nav-link',
-                {active: pathname === '/chart'}
+                {active: pathname === '/projection'}
               )
-              } href="/chart">
-              Chart
+              } href="/projection">
+              Projection
             </Link>
           </li>
           <li>
