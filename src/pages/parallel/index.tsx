@@ -15,6 +15,7 @@ export default function Parallel() {
   const [resp, setResp] = useState<any>();
   const [displayColorPicker, setDisplayColorPicker] = useState<any>();
   const [draw, setDraw] = useState<boolean>();
+  const [restrictions, setRestrictions] = useState<{ [key: string]: [number, number] | undefined; }>({});
 
   useEffect(() => {
     const radio = getValues('radio');
@@ -27,37 +28,8 @@ export default function Parallel() {
     if (length && length < 1)
       return;
     const newColors: string[] = [];
-    const firstColor = { red: 178, green: 24, blue: 43 };
-    const middleColor = { red: 247, green: 247, blue: 247 };
-    const lastColor = { red: 33, green: 102, blue: 172 };
-    const middle = Math.floor(newClasses.length / 2);
-    const factor1 = {
-      red: Math.floor((middleColor.red - firstColor.red) / middle),
-      green: Math.floor((middleColor.green - firstColor.green) / middle),
-      blue: Math.floor((middleColor.blue - firstColor.blue) / middle),
-    };
-    const factor2 = {
-      red: Math.floor((middleColor.red - lastColor.red) / middle),
-      green: Math.floor((middleColor.green - lastColor.green) / middle),
-      blue: Math.floor((middleColor.blue - lastColor.blue) / middle),
-    };
-
-    for (let i = 0; i < length; i++) {
-      if (i < middle) {
-        newColors.push(
-          `#${(firstColor.red + factor1.red * i).toString(16)}` +
-          `${(firstColor.green + factor1.green * i).toString(16)}` +
-          `${(firstColor.blue + factor1.blue * i).toString(16)}`
-        );
-      } else {
-        const aux = middle - length + i + 1;
-        console.log(i, aux);
-        newColors.push(
-          `#${(middleColor.red - factor2.red * aux).toString(16)}` +
-          `${(middleColor.green - factor2.green * aux).toString(16)}` +
-          `${(middleColor.blue - factor2.blue * aux).toString(16)}`
-        );
-      }
+    for (let i = 1; i <= length; i++) {
+      newColors.push(d3.interpolateSinebow(i / length));
     }
     setColors(newColors);
     setClasses(newClasses);
@@ -88,7 +60,8 @@ export default function Parallel() {
   };
 
   const getColorScale = () => {
-    const dimensions = resp.numericFeatures.map((feature: any) => feature.feature);
+    const radio = getValues('radio');
+    const dimensions = resp.nonNumericFeatures.find((item: any) => item.feature === radio).values;
     return d3.scaleOrdinal()
       .domain(dimensions)
       .range(colors);
@@ -100,7 +73,7 @@ export default function Parallel() {
     const height = 125 * features.length;
     const margin = 20;
     const svg = d3.select(chart.current);
-    const key = getValues('radio');
+    const radio = getValues('radio');
     const data = resp!.data;
     svg.selectAll('*').remove();
 
@@ -113,9 +86,10 @@ export default function Parallel() {
 
 
     const dimensions = features.map((feature: any) => feature.feature);
+    // const dimensions = resp.nonNumericFeatures.find((item: any) => item.feature === radio).values;
 
     const color = d3.scaleOrdinal()
-      .domain(dimensions)
+      .domain(resp.nonNumericFeatures.find((item: any) => item.feature === radio).values)
       .range(colors);
 
     const y: { [key: string]: any; } = {};
@@ -123,7 +97,7 @@ export default function Parallel() {
       const name = item.feature;
       y[name] = d3.scaleLinear()
         .domain([item.min, item.max])
-        .range([height - margin, margin]);
+        .range([height - margin, margin]).nice();
     });
 
     const x = d3.scalePoint()
@@ -134,52 +108,90 @@ export default function Parallel() {
       return d3.line()(dimensions.map((p: any): any => { return [x(p), y[p](d[p])]; }));
     };
 
-    const highlight = function (_event: any, d: any) {
-      const selected_data = d[key];
+    // const highlight = function (_event: any, d: any) {
+    //   const selected_data = d[key];
 
-      d3.selectAll('.line')
-        .transition().duration(200)
-        .style('stroke', 'lightgrey')
-        .style('opacity', '0.2');
-      d3.selectAll('.' + getColorClass(selected_data))
-        .transition().duration(200)
-        .style('stroke', color(selected_data) as any)
-        .style('opacity', '1');
-    };
+    //   d3.selectAll('.line')
+    //     .transition().duration(200)
+    //     .style('stroke', 'lightgrey')
+    //     .style('opacity', '0.2');
+    //   d3.selectAll('.' + getColorClass(selected_data))
+    //     .transition().duration(200)
+    //     .style('stroke', color(selected_data) as any)
+    //     .style('opacity', '1');
+    // };
 
-    const doNotHighlight = function (): any {
-      d3.selectAll('.line')
-        .transition().duration(200).delay(1000)
-        .style('stroke', function (d: any): any { return (color(d[key])); })
-        .style('opacity', '1');
-    };
+    // const doNotHighlight = function (): any {
+    //   d3.selectAll('.line')
+    //     .transition().duration(200).delay(1000)
+    //     .style('stroke', function (d: any): any { return (color(d[key])); })
+    //     .style('opacity', '1');
+    // };
 
-    svg
-      .selectAll('myPath')
+    svg.selectAll('myPath')
       .data(data)
       .enter()
       .append('path')
-      .attr('class', function (d: any) { return 'line ' + getColorClass(d[key]); })
+      .attr('class', function (d: any) { return 'line ' + getColorClass(d[radio]); })
       .attr('d', path)
       .style('fill', 'none')
       .style('stroke', 'black')
-      .style('stroke', function (d: any): any { return (color(d[key])); })
-      .style('opacity', 0.5)
-      .on('mouseover', highlight)
-      .on('mouseleave', doNotHighlight);
+      .style('stroke', function (d: any): any { return (color(d[radio])); })
+      .style('opacity', 0.5);
+    // .on('mouseover', highlight)
+    // .on('mouseleave', doNotHighlight);
 
     svg.selectAll('myAxis')
       .data(dimensions).enter()
       .append('g')
       .attr('transform', (d: any) => 'translate(' + x(d) + ')')
+      .attr('class', 'axis')
       .each(function (d: any) {
-        d3.select(this).call(d3.axisLeft().ticks(5).scale(y[d]));
+        d3.select(this)
+          .call(d3.axisLeft().scale(y[d]));
       })
       .append('text')
       .style('text-anchor', 'middle')
       .attr('y', 9)
       .text(function (d): any { return d; })
       .style('fill', 'black');
+
+    svg.selectAll('.axis').call(
+      d3.brushY()
+        .extent([[-25, margin], [25, height - margin]])
+        .on('start brush end', ({ selection }, key: any) => {
+          const restr = restrictions;
+          if (!selection) {
+            delete restr[key];
+          } else {
+            restr[key] = selection;
+          }
+          setRestrictions(restr);
+
+          d3.selectAll('.line')
+            .transition().duration(200)
+            .style('stroke', 'lightgrey')
+            .style('opacity', '0.2');
+
+          d3.selectAll('.line')
+            .filter((d: any) => {
+              if (!d) return false;
+              let aux = true;
+              Object.keys(restr).forEach((item) => {
+                const [y0, y1] = restr[item]!;
+                const coord = y[item](d[item]);
+                aux &&= y0 <= coord && coord <= y1;
+              });
+              return aux;
+            })
+            .raise()
+            .transition().duration(200)
+            .style('stroke', (d: any): any => { return (color(d[radio])); })
+            .style('opacity', '1')
+
+          d3.selectAll('.axis')
+            .raise()
+        }) as any);
 
     setDraw(false);
   };
@@ -212,17 +224,35 @@ export default function Parallel() {
     const newColors: string[] = [...colors];
     newColors[index] = value.hex;
     setColors(newColors);
+    d3.selectAll(`.color${index}`)
+      .style('stroke', value.hex)
   };
 
-  const handleMouseEnter = (item: any, color: string) => {
+  const handleHighlightClass = (item: any, color: string) => {
     d3.selectAll('.line')
       .transition().duration(200)
       .style('stroke', 'lightgrey')
       .style('opacity', '0.2');
     d3.selectAll('.' + getColorClass(item))
+      .raise()
       .transition().duration(200)
       .style('stroke', color)
       .style('opacity', '1');
+    d3.selectAll('.axis')
+      .raise()
+      .call(d3.brushY().clear as any);
+  };
+
+  const handleHighlightAll = () => {
+    const colorScale = getColorScale();
+    const radio = getValues('radio')
+    d3.selectAll('.line')
+      .transition().duration(200)
+      .style('stroke', (d: any): any => colorScale(d[radio]))
+      .style('opacity', 0.5);
+
+    d3.selectAll('.axis')
+      .call(d3.brushY().clear as any)
   };
 
   return (
@@ -236,16 +266,26 @@ export default function Parallel() {
               className="btn btn-secondary mt-2"
               type="button"
               onClick={() => setDraw(true)}
-            >Plot/Reset</button>
+            >Plot</button>
+            <button
+              className="btn btn-light"
+              type="button"
+              onClick={() => handleHighlightAll()}
+            >Highlight all</button>
             {classes?.map((item: any, index: number) => {
               return (<div className="d-flex mt-2">
-                <span>{item}:</span>
+                <button
+                  className="btn btn-light"
+                  type="button"
+                  onClick={() => handleHighlightClass(item, colors[index])}
+                >
+                  {item}:
+                </button>
                 <button
                   className="btn border mx-2"
                   onClick={() => handleClick(item)}
                   style={{ backgroundColor: colors[index] }}
                   type="button"
-                  onMouseEnter={() => handleMouseEnter(item, colors[index])}
                 >
                 </button>
                 <div>
@@ -260,7 +300,7 @@ export default function Parallel() {
             })}
           </div>
           <div className="col-9 d-flex">
-            <div className="mx-auto .bg-warning.bg-gradient">
+            <div className="mx-auto">
               <svg ref={chart} />
             </div>
           </div>

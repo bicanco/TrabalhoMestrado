@@ -135,7 +135,7 @@ export default function Chart() {
       .attr('r', 5);
 
       svg.call(d3.brush().on('start brush end', ({selection}) => {
-        let value = [];
+        let value: any = [];
         if (selection) {
           const [[x0, y0], [x1, y1]] = selection;
           value = dots
@@ -144,12 +144,16 @@ export default function Chart() {
                     && y0 <= yScale(d.y) && yScale(d.y) < y1)
             .style('stroke', 'black')
             .data();
-        } else {
-          dots.style('stroke', 'black');
         }
 
+        d3.select('.selected')
+          .attr('class', null)
+          .attr('fill', 'steelblue')
+
+        setAudioSrcIndex(undefined);
+        setAudioSrc('');
         setSelection(value);
-      }));
+      }) as any);
 
     // dots
     // .attr('pointer-events', 'all')
@@ -313,6 +317,17 @@ export default function Chart() {
     setTimeout(() => {
       setAudioSrc('http://localhost:8000/wav?'+params);
     });
+    d3.selectAll('circle')
+      .attr('stroke', 'steelblue')
+      .attr('fill', 'steelblue')
+
+    d3.selectAll('circle')
+      .filter((d: any) => d.text === filename)
+      .attr('stroke', 'black')
+      .attr('fill', '#0dcaf0')
+      .attr('class', 'selected')
+      .raise()
+      .attr('opacity', 1)
   };
 
   return (
