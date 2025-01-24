@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import Head from 'next/head';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChromePicker } from 'react-color';
 import { useForm, useWatch } from 'react-hook-form';
@@ -7,31 +8,36 @@ import SelectFile from '@components/select-file/SelectFile';
 
 export default function Parallel() {
   const chart = useRef<SVGSVGElement>(null);
-  const { register, control, getValues } = useForm();
+  const { register, control, getValues, setValue } = useForm();
   const watch = useWatch({ control });
-  const [colors, setColors] = useState<any[]>([]);
+  const [colours, setColours] = useState<any[]>([]);
   const [nFeatures, setNFeatures] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [resp, setResp] = useState<any>();
-  const [displayColorPicker, setDisplayColorPicker] = useState<any>();
+  const [displayColourPicker, setDisplayColourPicker] = useState<any>();
   const [draw, setDraw] = useState<boolean>();
   const [restrictions, setRestrictions] = useState<{ [key: string]: [number, number] | undefined; }>({});
+  const [file, setFile] = useState<File>();
+  const [showClassSelect, setShowClassSelect] = useState<boolean>();
+  const [selectOptions, setSelectOptions] = useState<any>();
 
   useEffect(() => {
     const radio = getValues('radio');
+    const selectedClass = getValues('selectedClass');
     if (!radio) {
       return;
     }
-    const newClasses: any[] = nFeatures?.find(item => item.feature === radio)?.values;
+    const newClasses: any[] = selectedClass ? nFeatures?.find(item => item.feature === radio)?.[selectedClass] : nFeatures?.find(item => item.feature === radio)?.values;
+
     const length = newClasses.length;
 
     if (length && length < 1)
       return;
-    const newColors: string[] = [];
+    const newColours: string[] = [];
     for (let i = 1; i <= length; i++) {
-      newColors.push(d3.interpolateSinebow(i / length));
+      newColours.push(d3.interpolateSinebow(i / length));
     }
-    setColors(newColors);
+    setColours(newColours);
     setClasses(newClasses);
   }, [watch]);
 
@@ -42,29 +48,29 @@ export default function Parallel() {
   }, [draw]);
 
   const renderFeatures = useCallback(() => {
-    return nFeatures?.map((item: any) => {
+    return nFeatures?.map((item: any, index: number) => {
       const name = item.feature;
-      return (<>
-        <div className="form-check">
-          <input className="form-check-input" type="radio" {...register('radio')} value={name} />
-          <label className="form-check-label" htmlFor="flexRadioDefault1">
+      return (
+        <div className='form-check' key={index}>
+          <input className='form-check-input' type='radio' {...register('radio')} value={name} />
+          <label className='form-check-label' htmlFor='flexRadioDefault1'>
             {name}
           </label>
         </div>
-      </>);
+      );
     });
   }, [nFeatures]);
 
-  const getColorClass = (selected: string) => {
-    return `color${classes.findIndex((item) => item === selected)}`;
+  const getColourClass = (selected: string) => {
+    return `colour${classes.findIndex((item) => item === selected)}`;
   };
 
-  const getColorScale = () => {
+  const getColourScale = () => {
     const radio = getValues('radio');
     const dimensions = resp.nonNumericFeatures.find((item: any) => item.feature === radio).values;
     return d3.scaleOrdinal()
       .domain(dimensions)
-      .range(colors);
+      .range(colours);
   };
 
   const drawChart = () => {
@@ -74,7 +80,8 @@ export default function Parallel() {
     const margin = 20;
     const svg = d3.select(chart.current);
     const radio = getValues('radio');
-    const data = resp!.data;
+    const selectedClass = getValues('selectedClass')
+    const data = resp!.data.filter((d: any) => !selectedClass || d.Class === selectedClass);
     svg.selectAll('*').remove();
 
     svg
@@ -86,17 +93,26 @@ export default function Parallel() {
 
 
     const dimensions = features.map((feature: any) => feature.feature);
-    // const dimensions = resp.nonNumericFeatures.find((item: any) => item.feature === radio).values;
 
-    const color = d3.scaleOrdinal()
+    const colour = d3.scaleOrdinal()
       .domain(resp.nonNumericFeatures.find((item: any) => item.feature === radio).values)
-      .range(colors);
+      .range(colours);
 
     const y: { [key: string]: any; } = {};
     features.forEach((item: any) => {
+      let max;
+      let min;
+      if (selectedClass) {
+        max = item[selectedClass].max
+        min = item[selectedClass].min
+      } else {
+        const keys = Object.keys(item).filter(key => key !== 'feature');
+        max = keys.reduce((prev, curr) => item[curr].max > prev ? item[curr].max : prev, item[keys[0]].max);
+        min = keys.reduce((prev, curr) => item[curr].min < prev ? item[curr].min : prev, item[keys[0]].min);
+      }
       const name = item.feature;
       y[name] = d3.scaleLinear()
-        .domain([item.min, item.max])
+        .domain([min, max])
         .range([height - margin, margin]).nice();
     });
 
@@ -108,38 +124,16 @@ export default function Parallel() {
       return d3.line()(dimensions.map((p: any): any => { return [x(p), y[p](d[p])]; }));
     };
 
-    // const highlight = function (_event: any, d: any) {
-    //   const selected_data = d[key];
-
-    //   d3.selectAll('.line')
-    //     .transition().duration(200)
-    //     .style('stroke', 'lightgrey')
-    //     .style('opacity', '0.2');
-    //   d3.selectAll('.' + getColorClass(selected_data))
-    //     .transition().duration(200)
-    //     .style('stroke', color(selected_data) as any)
-    //     .style('opacity', '1');
-    // };
-
-    // const doNotHighlight = function (): any {
-    //   d3.selectAll('.line')
-    //     .transition().duration(200).delay(1000)
-    //     .style('stroke', function (d: any): any { return (color(d[key])); })
-    //     .style('opacity', '1');
-    // };
-
     svg.selectAll('myPath')
       .data(data)
       .enter()
       .append('path')
-      .attr('class', function (d: any) { return 'line ' + getColorClass(d[radio]); })
+      .attr('class', function (d: any) { return 'line ' + getColourClass(d[radio]); })
       .attr('d', path)
       .style('fill', 'none')
       .style('stroke', 'black')
-      .style('stroke', function (d: any): any { return (color(d[radio])); })
+      .style('stroke', function (d: any): any { return (colour(d[radio])); })
       .style('opacity', 0.5);
-    // .on('mouseover', highlight)
-    // .on('mouseleave', doNotHighlight);
 
     svg.selectAll('myAxis')
       .data(dimensions).enter()
@@ -176,17 +170,17 @@ export default function Parallel() {
           d3.selectAll('.line')
             .filter((d: any) => {
               if (!d) return false;
-              let aux = true;
+              let isInRange = true;
               Object.keys(restr).forEach((item) => {
                 const [y0, y1] = restr[item]!;
                 const coord = y[item](d[item]);
-                aux &&= y0 <= coord && coord <= y1;
+                isInRange &&= y0 <= coord && coord <= y1;
               });
-              return aux;
+              return isInRange;
             })
             .raise()
             .transition().duration(200)
-            .style('stroke', (d: any): any => { return (color(d[radio])); })
+            .style('stroke', (d: any): any => { return (colour(d[radio])); })
             .style('opacity', '1')
 
           d3.selectAll('.axis')
@@ -198,6 +192,7 @@ export default function Parallel() {
 
   const onSubmit = (file: File) => {
     const body = new FormData();
+    setFile(file);
     body.append('files', file!);
 
     fetch('http://localhost:8000/parallel',
@@ -209,34 +204,43 @@ export default function Parallel() {
       .then(resp => {
         setResp(resp);
         setNFeatures(resp.nonNumericFeatures);
+        const nonNumericFeatures = resp.nonNumericFeatures.find((item: any) => item.feature === 'Class');
+        if(nonNumericFeatures?.values.length > 1) {
+          setValue('selectedClass', '')
+          setShowClassSelect(true);
+          setSelectOptions(nonNumericFeatures.values);
+        } else {
+          setValue('selectedClass', nonNumericFeatures.values[0])
+          setShowClassSelect(false);
+        }
       });
   };
 
   const handleClick = (value: any) => {
-    if (displayColorPicker === value) {
-      setDisplayColorPicker(undefined);
+    if (displayColourPicker === value) {
+      setDisplayColourPicker(undefined);
     } else {
-      setDisplayColorPicker(value);
+      setDisplayColourPicker(value);
     }
   };
 
-  const handleChangeColor = (value: any, index: number) => {
-    const newColors: string[] = [...colors];
-    newColors[index] = value.hex;
-    setColors(newColors);
-    d3.selectAll(`.color${index}`)
+  const handleChangeColour = (value: any, index: number) => {
+    const newColours: string[] = [...colours];
+    newColours[index] = value.hex;
+    setColours(newColours);
+    d3.selectAll(`.colour${index}`)
       .style('stroke', value.hex)
   };
 
-  const handleHighlightClass = (item: any, color: string) => {
+  const handleHighlightClass = (item: any, colour: string) => {
     d3.selectAll('.line')
       .transition().duration(200)
       .style('stroke', 'lightgrey')
       .style('opacity', '0.2');
-    d3.selectAll('.' + getColorClass(item))
+    d3.selectAll('.' + getColourClass(item))
       .raise()
       .transition().duration(200)
-      .style('stroke', color)
+      .style('stroke', colour)
       .style('opacity', '1');
     d3.selectAll('.axis')
       .raise()
@@ -244,63 +248,107 @@ export default function Parallel() {
   };
 
   const handleHighlightAll = () => {
-    const colorScale = getColorScale();
+    const colourScale = getColourScale();
     const radio = getValues('radio')
     d3.selectAll('.line')
       .transition().duration(200)
-      .style('stroke', (d: any): any => colorScale(d[radio]))
+      .style('stroke', (d: any): any => colourScale(d[radio]))
       .style('opacity', 0.5);
 
     d3.selectAll('.axis')
       .call(d3.brushY().clear as any)
   };
 
+  const handleExportColours = () => {
+    const body = new FormData();
+    const fieldValue = colours.map((colour, index) => ([classes[index], colour]))
+    body.append('files', file!);
+    body.append('colours', JSON.stringify(fieldValue));
+    body.append('key', getValues('radio'))
+    fetch('http://localhost:8000/colours',
+      {
+        method: 'POST',
+        body
+      })
+      .then(resp => resp.blob())
+      .then(resp => {
+        const url = window.URL.createObjectURL(new Blob([resp]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', file!.name);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      })
+  };
+
   return (
     <>
+      <Head>
+        <title>VT-EAA: Parallel plot</title>
+      </Head>
       <SelectFile onSubmit={onSubmit} />
-      <div className="row">
+      {showClassSelect &&
+        <div className='m-3'>
+          <label htmlFor='class' className='form-label'>Select class</label>
+          <select id='class' className='form-select' {...register('selectedClass')}>
+            <option value=''>All classes</option>
+            {selectOptions.map((option: string, index: number) =>
+              <option value={option} key={index}>{option}</option>
+            )}
+          </select>
+        </div>
+      }
+      <div className='row'>
         {resp && (<>
-          <div className="px-5 col-3">
+          <div className='px-5 col-3'>
             {renderFeatures()}
-            <button
-              className="btn btn-secondary mt-2"
-              type="button"
-              onClick={() => setDraw(true)}
-            >Plot</button>
-            <button
-              className="btn btn-light"
-              type="button"
-              onClick={() => handleHighlightAll()}
-            >Highlight all</button>
+            <div className='d-flex flex-column'>
+              <button
+                className='btn btn-secondary mt-2'
+                type='button'
+                onClick={() => setDraw(true)}
+              >Plot</button>
+              <button
+                className='btn btn-light border'
+                type='button'
+                onClick={() => handleHighlightAll()}
+              >Highlight all</button>
+              <button
+                className='btn btn-light border'
+                type='button'
+                onClick={() => handleExportColours()}
+              >Export colours</button>
+            </div>
             {classes?.map((item: any, index: number) => {
-              return (<div className="d-flex mt-2">
+              return (<div className='d-flex mt-2' key={index}>
                 <button
-                  className="btn btn-light"
-                  type="button"
-                  onClick={() => handleHighlightClass(item, colors[index])}
+                  className='btn btn-light'
+                  type='button'
+                  onClick={() => handleHighlightClass(item, colours[index])}
                 >
                   {item}:
                 </button>
                 <button
-                  className="btn border mx-2"
+                  className='btn border mx-2'
                   onClick={() => handleClick(item)}
-                  style={{ backgroundColor: colors[index] }}
-                  type="button"
+                  style={{ backgroundColor: colours[index] }}
+                  type='button'
                 >
                 </button>
                 <div>
                   {
-                    displayColorPicker === item &&
+                    displayColourPicker === item &&
                     <ChromePicker
-                      color={colors[index]}
-                      onChange={value => handleChangeColor(value, index)}
+                      color={colours[index]}
+                      onChange={value => handleChangeColour(value, index)}
                     />}
                 </div>
               </div>);
             })}
           </div>
-          <div className="col-9 d-flex">
-            <div className="mx-auto">
+          <div className='col-9 d-flex'>
+            <div className='mx-auto'>
               <svg ref={chart} />
             </div>
           </div>
